@@ -2,10 +2,10 @@ from rdflib.query import (
     Result, ResultException, ResultSerializer, ResultParser)
 from rdflib import Literal, URIRef, BNode, Variable
 
-from rdflib.py3compat import bytestype
+from rdflib.py3compat import bytestype, text_type
 
 
-import jsonlayer
+import json
 
 """A Serializer for SPARQL results in JSON:
 
@@ -25,7 +25,7 @@ class JSONResultParser(ResultParser):
         inp = source.read()
         if isinstance(inp, bytestype):
             inp = inp.decode('utf-8')
-        return JSONResult(jsonlayer.decode(inp))
+        return JSONResult(json.loads(inp))
 
 
 class JSONResultSerializer(ResultSerializer):
@@ -47,7 +47,7 @@ class JSONResultSerializer(ResultSerializer):
             res["results"]["bindings"] = [self._bindingToJSON(
                 x) for x in self.result.bindings]
 
-        r = jsonlayer.encode(res)
+        r = json.dumps(res)
         if encoding is not None:
             stream.write(r.encode(encoding))
         else:
@@ -116,15 +116,15 @@ def parseJsonTerm(d):
 
 def termToJSON(self, term):
     if isinstance(term, URIRef):
-        return {'type': 'uri', 'value': unicode(term)}
+        return {'type': 'uri', 'value': text_type(term)}
     elif isinstance(term, Literal):
         if term.datatype is not None:
             return {'type': 'typed-literal',
-                    'value': unicode(term),
-                    'datatype': unicode(term.datatype)}
+                    'value': text_type(term),
+                    'datatype': text_type(term.datatype)}
         else:
             r = {'type': 'literal',
-                 'value': unicode(term)}
+                 'value': text_type(term)}
             if term.language is not None:
                 r['xml:lang'] = term.language
             return r
