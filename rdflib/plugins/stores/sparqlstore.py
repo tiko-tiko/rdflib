@@ -13,7 +13,6 @@ ORDERBY = 'ORDER BY'
 
 import re
 import collections
-import urllib2
 
 try:
     from SPARQLWrapper import SPARQLWrapper, XML, POST, GET, URLENCODED, POSTDIRECTLY
@@ -44,8 +43,7 @@ from rdflib import Variable, Namespace, BNode, URIRef, Literal
 from rdflib.graph import DATASET_DEFAULT_GRAPH_ID
 from rdflib.term import Node
 
-import httplib
-import urlparse
+from rdflib.py3compat import text_type, string_types
 
 class NSSPARQLWrapper(SPARQLWrapper):
     nsBindings = {}
@@ -75,7 +73,7 @@ class NSSPARQLWrapper(SPARQLWrapper):
         self.queryString = self.injectPrefixes(query)
 
     def injectPrefixes(self, query):
-        prefixes = self.nsBindings.items()
+        prefixes = list(self.nsBindings.items())
         if not prefixes:
             return query
         return '\n'.join([
@@ -252,13 +250,13 @@ class SPARQLStore(NSSPARQLWrapper, Store):
     def rollback(self):
         raise TypeError('The SPARQL store is read only')
 
-    def add(self, (subject, predicate, obj), context=None, quoted=False):
+    def add(self, _, context=None, quoted=False):
         raise TypeError('The SPARQL store is read only')
 
     def addN(self, quads):
         raise TypeError('The SPARQL store is read only')
 
-    def remove(self, (subject, predicate, obj), context):
+    def remove(self, _, context):
         raise TypeError('The SPARQL store is read only')
 
     def query(self, query,
@@ -267,7 +265,7 @@ class SPARQLStore(NSSPARQLWrapper, Store):
               queryGraph=None,
               DEBUG=False):
         self.debug = DEBUG
-        assert isinstance(query, basestring)
+        assert isinstance(query, string_types)
         self.setNamespaceBindings(initNs)
         if initBindings:
             if not self.sparql11:
@@ -288,7 +286,7 @@ class SPARQLStore(NSSPARQLWrapper, Store):
 
         return Result.parse(SPARQLWrapper.query(self).response)
 
-    def triples(self, (s, p, o), context=None):
+    def triples(self, spo, context=None):
         """
         - tuple **(s, o, p)**
             the triple used as filter for the SPARQL select.
@@ -323,6 +321,8 @@ class SPARQLStore(NSSPARQLWrapper, Store):
         del a_graph.OFFSET
         ``
         """
+
+        s, p, o = spo
 
         vars = []
         if not s:
@@ -384,7 +384,7 @@ class SPARQLStore(NSSPARQLWrapper, Store):
                    rt.get(p, p),
                    rt.get(o, o)), None
 
-    def triples_choices(self, (subject, predicate, object_), context=None):
+    def triples_choices(self, _, context=None):
         """
         A variant of triples that can take a list of terms instead of a
         single term in any slot.  Stores can implement this to optimize
@@ -406,13 +406,13 @@ class SPARQLStore(NSSPARQLWrapper, Store):
                 self.addParameter("default-graph-uri", context.identifier)
             self.setQuery(q)
             doc = ElementTree.parse(SPARQLWrapper.query(self).response)
-            rt, vars = iter(
+            rt, vars = next(iter(
                 _traverse_sparql_result_dom(
                     doc,
                     as_dictionary=True,
                     node_from_result=self.node_from_result
                 )
-            ).next()
+            ))
             return int(rt.get(Variable("c")))
 
     def contexts(self, triple=None):
@@ -478,7 +478,7 @@ class SPARQLStore(NSSPARQLWrapper, Store):
         """
         if (not self.context_aware) or (graph is None):
             return False
-        if isinstance(graph, basestring):
+        if isinstance(graph, string_types):
             return graph != '__UNION__'
         else:
             return graph.identifier != DATASET_DEFAULT_GRAPH_ID
@@ -524,18 +524,18 @@ class SPARQLUpdateStore(SPARQLStore):
     # in order to avoid unbalanced curly braces.
 
     # From the SPARQL grammar
-    STRING_LITERAL1 = ur"'([^'\\]|\\.)*'"
-    STRING_LITERAL2 = ur'"([^"\\]|\\.)*"'
-    STRING_LITERAL_LONG1 = ur"'''(('|'')?([^'\\]|\\.))*'''"
-    STRING_LITERAL_LONG2 = ur'"""(("|"")?([^"\\]|\\.))*"""'
+    STRING_LITERAL1 = u"'([^'\\\\]|\\\\.)*'"
+    STRING_LITERAL2 = u'"([^"\\\\]|\\\\.)*"'
+    STRING_LITERAL_LONG1 = u"'''(('|'')?([^'\\\\]|\\\\.))*'''"
+    STRING_LITERAL_LONG2 = u'"""(("|"")?([^"\\\\]|\\\\.))*"""'
     String = u'(%s)|(%s)|(%s)|(%s)' % (STRING_LITERAL1, STRING_LITERAL2, STRING_LITERAL_LONG1, STRING_LITERAL_LONG2)
-    IRIREF = ur'<([^<>"{}|^`\]\\\[\x00-\x20])*>'
-    COMMENT = ur'#[^\x0D\x0A]*([\x0D\x0A]|\Z)'
+    IRIREF = u'<([^<>"{}|^`\\]\\\\\[\\x00-\\x20])*>'
+    COMMENT = u'#[^\\x0D\\x0A]*([\\x0D\\x0A]|\\Z)'
 
     # Simplified grammar to find { at beginning and } at end of blocks
     BLOCK_START = u'{'
     BLOCK_END = u'}'
-    ESCAPED = ur'\\.'
+    ESCAPED = u'\\\\.'
 
     # Match anything that doesn't start or end a block:
     BlockContent = u'(%s)|(%s)|(%s)|(%s)' % (String, IRIREF, COMMENT, ESCAPED)
@@ -768,7 +768,7 @@ class SPARQLUpdateStore(SPARQLStore):
             raise Exception("UpdateEndpoint is not set - call 'open'")
 
         self.debug = DEBUG
-        assert isinstance(query, basestring)
+        assert isinstance(query, string_types)
         self.setNamespaceBindings(initNs)
         query = self.injectPrefixes(query)
 
