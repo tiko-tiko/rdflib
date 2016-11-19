@@ -187,7 +187,7 @@ def evalValues(ctx, part):
     for r in part.p.res:
         c = ctx.push()
         try:
-            for k, v in r.iteritems():
+            for k, v in r.items():
                 if v != 'UNDEF':
                     c[k] = v
         except AlreadyBound:
@@ -332,7 +332,7 @@ def evalSlice(ctx, slice):
     res = evalPart(ctx, slice.p)
     i = 0
     while i < slice.start:
-        res.next()
+        next(res)
         i += 1
     i = 0
     for x in res:
@@ -416,7 +416,7 @@ def evalQuery(graph, query, initBindings, base=None):
         # add initBindings as a values clause
 
         values = {} # no dict comprehension in 2.6 :(
-        for k,v in initBindings.iteritems():
+        for k,v in initBindings.items():
             if not isinstance(k, Variable):
                 k = Variable(k)
             values[k] = v
