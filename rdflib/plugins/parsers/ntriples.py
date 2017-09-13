@@ -28,7 +28,7 @@ from six import unichr
 
 __all__ = ['unquote', 'uriquote', 'Sink', 'NTriplesParser']
 
-uriref = r'<([^\s"<>]+)>'
+uriref = r'<([^\s"<>]*)>'
 literal = r'"([^"\\]*(?:\\.[^"\\]*)*)"'
 litinfo = r'(?:@([a-z]+(?:-[a-zA-Z0-9]+)*)|\^\^' + uriref + r')?'
 
@@ -37,7 +37,7 @@ r_wspace = re.compile(r'[ \t]*')
 r_wspaces = re.compile(r'[ \t]+')
 r_tail = re.compile(r'[ \t]*\.[ \t]*(#.*)?')
 r_uriref = re.compile(uriref)
-r_nodeid = re.compile(r'_:([A-Za-z0-9]*)')
+r_nodeid = re.compile(r'_:([A-Za-z0-9_:]([-A-Za-z0-9_:.]*[-A-Za-z0-9_:])?)')
 r_literal = re.compile(literal + litinfo)
 
 bufsiz = 2048
@@ -219,20 +219,28 @@ class NTriplesParser(object):
 
     def subject(self):
         # @@ Consider using dictionary cases
-        subj = self.uriref() or self.nodeid()
-        if not subj:
+        subj = None
+        for f in self.uriref, self.nodeid:
+            subj = f()
+            if subj is not None:
+                break
+        if subj is None:
             raise ParseError("Subject must be uriref or nodeID")
         return subj
 
     def predicate(self):
         pred = self.uriref()
-        if not pred:
+        if pred is None:
             raise ParseError("Predicate must be uriref")
         return pred
 
     def object(self):
-        objt = self.uriref() or self.nodeid() or self.literal()
-        if objt is False:
+        objt = None
+        for f in self.uriref, self.nodeid, self.literal:
+            objt = f()
+            if objt is not None:
+                break
+        if objt is None:
             raise ParseError("Unrecognised object type")
         return objt
 
@@ -242,7 +250,6 @@ class NTriplesParser(object):
             uri = unquote(uri)
             uri = uriquote(uri)
             return URI(uri)
-        return False
 
     def nodeid(self):
         if self.peek('_'):
@@ -258,7 +265,6 @@ class NTriplesParser(object):
                 # Store the mapping
                 self._bnode_ids[bnode_id] = bnode
                 return bnode
-        return False
 
     def literal(self):
         if self.peek('"'):
@@ -275,7 +281,6 @@ class NTriplesParser(object):
                 raise ParseError("Can't have both a language and a datatype")
             lit = unquote(lit)
             return Literal(lit, lang, dtype)
-        return False
 
 # # Obsolete, unused
 # def parseURI(uri):
